@@ -10,7 +10,7 @@ class AutonomousAUV:
         signal.signal(signal.SIGINT, self.shutdown)
         signal.signal(signal.SIGTERM, self.shutdown)
         
-        # Connect via serial (onboard connection)
+        # Connect to Pixhawk
         print("[INFO] Connecting to Pixhawk...")
         self.master = mavutil.mavlink_connection('udpin:0.0.0.0:14550')
         self.master.wait_heartbeat()
@@ -26,147 +26,69 @@ class AutonomousAUV:
     
     def setup(self):
         """Setup AUV for autonomous operation"""
-        # Set mode to MANUAL for direct thruster control
+        # Set mode to MANUAL
         mode_mapping = self.master.mode_mapping()
-        if 'MANUAL' in mode_mapping:
-            mode_id = mode_mapping['MANUAL']
-        else:
-            # Fallback to STABILIZE if MANUAL not available
-            mode_id = mode_mapping.get('STABILIZE', 0)
-        
+        if 'MANUAL' not in mode_mapping:
+            raise Exception("[ERROR] MANUAL mode not available in mode mapping.")
+        mode_id = mode_mapping['MANUAL']
         self.master.set_mode(mode_id)
-        print(f"[INFO] Set to mode ID: {mode_id}")
-        time.sleep(2)
-        
-        # Send parameter request to ensure connection is stable
-        self.master.mav.param_request_list_send(
-            self.master.target_system,
-            self.master.target_component
-        )
+        print("[INFO] Set to MANUAL mode.")
+        time.sleep(1)
     
-    def send_rc_command(self, channels, duration, description):
-        """Send RC override for specified duration with debugging"""
+    def stop_movement(self):
+        """Stop all movement"""
+        rc_override = [1500] * 8 + [65535] * 10
+        self.master.mav.rc_channels_override_send(
+            self.master.target_system,
+            self.master.target_component,
+            *rc_override
+        )
+        print("[INFO] Motion stopped.")
+    
+    def arm(self):
+        """Arm the vehicle"""
+        print("[INFO] Arming the vehicle...")
+        self.master.arducopter_arm()
+        self.master.motors_armed_wait()
+        print("[SUCCESS] Vehicle armed.")
+        return True
+    
+    def disarm(self):
+        """Disarm the vehicle"""
+        print("[INFO] Disarming the vehicle...")
+        self.master.arducopter_disarm()
+        self.master.motors_disarmed_wait()
+        print("[SUCCESS] Vehicle disarmed.")
+    
+    def send_rc_movement(self, channel_values, duration, description):
+        """Send RC override for specified duration"""
         if not self.running:
             return False
             
         print(f"[ACTION] {description}")
-        print(f"[DEBUG] Channel commands: {channels}")
         
-        # Initialize all channels to neutral (1500)
+        # RC override array: 8 channels + 10 spares
         rc_override = [1500] * 8 + [65535] * 10
         
         # Apply channel values
-        for channel, value in channels.items():
-            if 0 <= channel < 8:  # Ensure valid channel range
-                rc_override[channel] = value
-                print(f"[DEBUG] Setting channel {channel+1} to {value}")
+        for channel, value in channel_values.items():
+            rc_override[channel] = value
         
         start_time = time.time()
-        command_count = 0
-        
         while time.time() - start_time < duration and self.running:
             self.master.mav.rc_channels_override_send(
                 self.master.target_system,
                 self.master.target_component,
                 *rc_override
             )
-            command_count += 1
             time.sleep(0.1)
         
-        print(f"[DEBUG] Sent {command_count} RC commands over {duration}s")
+        # Stop motion
         self.stop_movement()
         return self.running
     
-    def stop_movement(self):
-        """Stop all movement"""
-        print("[DEBUG] Stopping all movement...")
-        rc_override = [1500] * 8 + [65535] * 10
-        # Send stop command multiple times to ensure it's received
-        for _ in range(5):
-            self.master.mav.rc_channels_override_send(
-                self.master.target_system,
-                self.master.target_component,
-                *rc_override
-            )
-            time.sleep(0.05)
-    
-    def test_individual_thrusters(self):
-        """Test each thruster individually for debugging"""
-        print("\n=== THRUSTER TEST SEQUENCE ===")
-        
-        # Test common thruster channel mappings
-        test_channels = [
-            (0, "Thruster 1 (usually forward/back)"),
-            (1, "Thruster 2 (usually up/down)"), 
-            (2, "Thruster 3 (usually left/right)"),
-            (3, "Thruster 4 (usually yaw)"),
-            (4, "Thruster 5"),
-            (5, "Thruster 6")
-        ]
-        
-        for channel, description in test_channels:
-            if not self.running:
-                break
-                
-            print(f"\n[TEST] Testing {description}")
-            print("Press Enter to continue or Ctrl+C to skip...")
-            try:
-                input()
-            except KeyboardInterrupt:
-                break
-                
-            # Test forward direction
-            self.send_rc_command({channel: 1600}, 2, f"Testing channel {channel+1} forward")
-            time.sleep(1)
-            
-            # Test reverse direction  
-            self.send_rc_command({channel: 1400}, 2, f"Testing channel {channel+1} reverse")
-            time.sleep(1)
-    
-    def arm(self):
-        """Arm the vehicle with better error handling"""
-        print("[1] Arming the vehicle...")
-        
-        # Check if already armed
-        self.master.recv_match(type='HEARTBEAT', blocking=True, timeout=5)
-        heartbeat = self.master.recv_match(type='HEARTBEAT', blocking=True, timeout=5)
-        if heartbeat and heartbeat.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED:
-            print("[INFO] Vehicle already armed")
-            return True
-        
-        # Send arm command
-        self.master.arducopter_arm()
-        
-        # Wait for arming with timeout
-        start_time = time.time()
-        while time.time() - start_time < 10:  # 10 second timeout
-            heartbeat = self.master.recv_match(type='HEARTBEAT', blocking=True, timeout=1)
-            if heartbeat and heartbeat.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED:
-                print("[SUCCESS] Vehicle armed")
-                return True
-            time.sleep(0.5)
-        
-        print("[ERROR] Failed to arm vehicle within 10 seconds")
-        return False
-    
-    def disarm(self):
-        """Disarm the vehicle"""
-        print("[DISARM] Disarming the vehicle...")
-        self.master.arducopter_disarm()
-        
-        # Wait for disarming
-        start_time = time.time()
-        while time.time() - start_time < 5:
-            heartbeat = self.master.recv_match(type='HEARTBEAT', blocking=True, timeout=1)
-            if heartbeat and not (heartbeat.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED):
-                print("[SUCCESS] Vehicle disarmed")
-                return
-            time.sleep(0.5)
-        
-        print("[WARNING] Disarm status unclear")
-    
     def execute_mission(self):
-        """Execute the autonomous dive sequence with corrected channel mapping"""
+        """Execute the autonomous dive sequence"""
         print("\n=== AUTONOMOUS DIVE SEQUENCE STARTING ===")
         
         # Safety countdown
@@ -179,40 +101,79 @@ class AutonomousAUV:
         try:
             # 1. Arm the vehicle
             if not self.arm():
-                print("[ERROR] Failed to arm - aborting mission")
                 return
             
-            # 2. Dive 1m (Channel 2 is typically throttle/up-down in ArduSub)
-            # Using 0-based indexing: Channel 2 = rc_override[2] = RC channel 3
-            if not self.send_rc_command({2: 1400}, 5, "[2] Diving 1 meter..."):
-                return
+            # 2. Dive for 2 seconds
+            print("[ACTION] Diving for 2 seconds...")
+            rc_override = [1500] * 8 + [65535] * 10
+            rc_override[2] = 1400  # Dive down
             
-            # 3. Stabilize for 3s
-            print("[3] Stabilizing for 3 seconds...")
-            time.sleep(3)
+            start_time = time.time()
+            while time.time() - start_time < 2 and self.running:
+                self.master.mav.rc_channels_override_send(
+                    self.master.target_system,
+                    self.master.target_component,
+                    *rc_override
+                )
+                time.sleep(0.1)
+            
+            self.stop_movement()
+            
+            # 3. Move Forward for 5 seconds
+            print("[ACTION] Moving forward for 5 seconds...")
+            rc_override = [1500] * 8 + [65535] * 10
+            rc_override[4] = 1600  # Forward thrust
+            rc_override[5] = 1600  # Forward thrust
+            
+            start_time = time.time()
+            while time.time() - start_time < 5 and self.running:
+                self.master.mav.rc_channels_override_send(
+                    self.master.target_system,
+                    self.master.target_component,
+                    *rc_override
+                )
+                time.sleep(0.1)
+            
+            self.stop_movement()
+            
+            # 4. Yaw 720 degrees right (differential thrust)
+            print("[ACTION] Yawing 720 degrees right for 8 seconds...")
+            rc_override = [1500] * 8 + [65535] * 10
+            rc_override[4] = 1600  # One side forward
+            rc_override[5] = 1400  # Other side reverse
+            
+            start_time = time.time()
+            while time.time() - start_time < 8 and self.running:
+                self.master.mav.rc_channels_override_send(
+                    self.master.target_system,
+                    self.master.target_component,
+                    *rc_override
+                )
+                time.sleep(0.1)
+            
+            self.stop_movement()
+            
+            # 5. Stabilize for 2 seconds
+            print("[INFO] Stabilizing for 2 seconds...")
+            time.sleep(2)
             if not self.running:
                 return
             
-            # 4. Move Forward 4m
-            # Channel 0 = forward/back (pitch), Channel 1 = left/right (roll) 
-            # Using both for forward motion - adjust based on your frame configuration
-            if not self.send_rc_command({0: 1600}, 6, "[4] Moving forward 4 meters..."):
-                return
+            # 6. Come to surface
+            print("[ACTION] Coming to surface for 6 seconds...")
+            rc_override = [1500] * 8 + [65535] * 10
+            rc_override[2] = 1600  # Surface up
             
-            # 5. Stabilize for 3s
-            print("[5] Stabilizing for 3 seconds...")
-            time.sleep(3)
-            if not self.running:
-                return
+            start_time = time.time()
+            while time.time() - start_time < 6 and self.running:
+                self.master.mav.rc_channels_override_send(
+                    self.master.target_system,
+                    self.master.target_component,
+                    *rc_override
+                )
+                time.sleep(0.1)
             
-            # 6. Yaw 720 degrees right
-            # Channel 3 is typically yaw
-            if not self.send_rc_command({3: 1600}, 8, "[6] Yawing 720 degrees right..."):
-                return
-            
-            # 7. Come to surface
-            if not self.send_rc_command({2: 1600}, 6, "[7] Coming to surface..."):
-                return
+            self.stop_movement()
             
             print("\n[SUCCESS] Mission completed successfully!")
             
@@ -234,20 +195,6 @@ def main():
         
         # Setup the vehicle
         auv.setup()
-        
-        # Ask user if they want to test thrusters first
-        print("\nWould you like to test individual thrusters first? (y/n)")
-        try:
-            response = input().lower()
-            if response == 'y':
-                auv.test_individual_thrusters()
-                print("\nProceed with mission? (y/n)")
-                response = input().lower()
-                if response != 'y':
-                    print("Mission cancelled by user")
-                    return
-        except KeyboardInterrupt:
-            print("\nSkipping thruster test...")
         
         # Execute the mission
         auv.execute_mission()
