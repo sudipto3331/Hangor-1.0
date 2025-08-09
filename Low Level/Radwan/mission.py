@@ -3,7 +3,7 @@ import time
 
 # Connect to Pixhawk
 print("[INFO] Connecting to Pixhawk...")
-master = mavutil.mavlink_connection('udpin:0.0.0.0:14550')
+master = mavutil.mavlink_connection('udpin:192.168.2.2:14550')
 master.wait_heartbeat()
 print(f"[INFO] Connected to system {master.target_system}, component {master.target_component}")
 
