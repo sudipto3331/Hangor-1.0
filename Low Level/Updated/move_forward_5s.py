@@ -27,12 +27,14 @@ rc_override = [1500] * 8 + [65535] * 10
 
 # Apply forward thrust – adjust channels based on your config
 # Assuming Thrusters 5 and 6 (MAIN OUT 5 and 6) = index 4 and 5
-rc_override[4] = 1600  # Forward thrust
-rc_override[5] = 1600
+rc_override[1] = 1550  # Forward thrust
+rc_override[2] = 1550
+# rc_override[2] = 1700
+# rc_override[3] = 1700
 
-print("[ACTION] Moving forward for 5 seconds...")
+print("[ACTION] Rolling for 5 seconds...")
 start_time = time.time()
-while time.time() - start_time < 5:
+while time.time() - start_time < 8:
     master.mav.rc_channels_override_send(
         master.target_system,
         master.target_component,
@@ -40,15 +42,15 @@ while time.time() - start_time < 5:
     )
     time.sleep(0.1)
 
-# Stop motion
-rc_override[4] = 1500
-rc_override[5] = 1500
-master.mav.rc_channels_override_send(
-    master.target_system,
-    master.target_component,
-    *rc_override
-)
-print("[INFO] Motion stopped.")
+# # Stop motion
+# rc_override[4] = 1500
+# rc_override[5] = 1500
+# master.mav.rc_channels_override_send(
+#     master.target_system,
+#     master.target_component,
+#     *rc_override
+# )
+# print("[INFO] Motion stopped.")
 
 # Disarm the vehicle
 print("[INFO] Disarming the vehicle...")
