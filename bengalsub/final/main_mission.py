@@ -12,13 +12,12 @@ print(f"[INFO] Connected to system {master.target_system}, component {master.tar
 # -----------------------------
 # Set mode to MANUAL
 # -----------------------------
+print("[INFO] Setting mode to STABILIZE...")
 mode_mapping = master.mode_mapping()
-if 'MANUAL' not in mode_mapping:
-    raise Exception("[ERROR] MANUAL mode not available in mode mapping.")
-mode_id = mode_mapping['MANUAL']
+mode_id = mode_mapping['STABILIZE']  # Change to STABILIZE for better control
 master.set_mode(mode_id)
-print("[INFO] Set to MANUAL mode.")
-time.sleep(1)
+print("[SUCCESS] Mode set to STABILIZE")
+time.sleep(2)
 
 # -----------------------------
 # Arm the vehicle
@@ -46,18 +45,18 @@ def set_neutral():
     for i in range(8):
         rc_override[i] = 1500
 
-# # -----------------------------
-# # MISSION SEQUENCE START
-# # -----------------------------
+# -----------------------------
+# MISSION SEQUENCE START
+# -----------------------------
 # 1. DIVING (DOWN) for 3s at 1700 PWM
 print("[ACTION] 1. Diving DOWN for 4 seconds.")
 set_neutral()
-rc_override[0] = 1380
-rc_override[1] = 1380
-# rc_override[2] = 1380
-# rc_override[3] = 1380
+rc_override[0] = 1430
+rc_override[1] = 1430
+# rc_override[2] = 1350
+# rc_override[3] = 1350
 start_time = time.time()
-while time.time() - start_time < 4:
+while time.time() - start_time < 15:
     send_rc_override()
     time.sleep(0.1)
 
@@ -72,10 +71,13 @@ while time.time() - start_time < 2:
 # 3. FORWARD for 5s at 1600 PWM
 print("[ACTION] 3. Moving forward for 10 seconds at 1600 PWM...")
 set_neutral()
-rc_override[4] = 1600
+# rc_override[4] = 1600
 rc_override[5] = 1600
+# rc_override[0] = 1500
+# rc_override[1] = 1500
+# rc_override[6] = 1550
 start_time = time.time()
-while time.time() - start_time < 8:
+while time.time() - start_time < 15:
     send_rc_override()
     time.sleep(0.1)
 
