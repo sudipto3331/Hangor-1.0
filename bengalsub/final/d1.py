@@ -33,7 +33,6 @@ print("[SUCCESS] Vehicle armed.")
 rc_override = [1500] * 8 + [65535] * 10
 
 def send_rc_override():
-    """Send the current RC override values"""
     master.mav.rc_channels_override_send(
         master.target_system,
         master.target_component,
@@ -41,43 +40,72 @@ def send_rc_override():
     )
 
 def set_neutral():
-    """Set all channels to neutral position"""
     for i in range(8):
         rc_override[i] = 1500
 
 # -----------------------------
-# Move forward and dive for 25 seconds
+# Function to read depth (meters)
 # -----------------------------
-print("[ACTION] Moving forward and diving for 25 seconds...")
+def read_depth():
+    msg = master.recv_match(type=['SCALED_PRESSURE', 'SCALED_PRESSURE2'], blocking=True, timeout=1)
+    if msg:
+        # Convert pressure (mbar) to depth (approx)
+        # freshwater: depth(m) ≈ (pressure_mbar - 1013.25) / 100
+        pressure_mbar = msg.press_abs
+        depth = (pressure_mbar - 1013.25) / 100.0
+        return depth
+    return None
+
+# -----------------------------
+# Store initial depth
+# -----------------------------
+print("[INFO] Waiting for initial depth reading...")
+target_depth = None
+while target_depth is None:
+    d = read_depth()
+    if d is not None:
+        target_depth = d
+        print(f"[INFO] Target depth locked at {target_depth:.2f} m")
+
+# -----------------------------
+# Move forward and hold depth
+# -----------------------------
+print("[ACTION] Moving forward at 1600 PWM while holding depth...")
+
 set_neutral()
-rc_override[4] = 1600  # forward (pitch)
-rc_override[2] = 1510  # dive (throttle, adjust if needed)
+rc_override[4] = 1600  # Forward thrust
 
 start_time = time.time()
 while time.time() - start_time < 20:
+    current_depth = read_depth()
+    if current_depth is not None:
+        # Simple proportional adjustment (no PID)
+        if current_depth < target_depth - 0.05:  # Too shallow
+            rc_override[2] = 1600  # Down
+        elif current_depth > target_depth + 0.05:  # Too deep
+            rc_override[2] = 1400  # Up
+        else:
+            rc_override[2] = 1500  # Neutral
+        
     send_rc_override()
     time.sleep(0.1)
 
 # -----------------------------
-# MISSION COMPLETE - STOP ALL MOTION
+# Stop motion
 # -----------------------------
-print("[INFO] Mission sequence complete. Stopping all motion...")
+print("[INFO] Mission complete. Stopping all motion...")
 set_neutral()
 send_rc_override()
 
-# Clear RC override
 rc_override = [65535] * 18
 send_rc_override()
-print("[INFO] RC override cleared.")
 
 # -----------------------------
-# Disarm the vehicle
+# Disarm
 # -----------------------------
-print("[INFO] Disarming the vehicle...")
+print("[INFO] Disarming...")
 master.arducopter_disarm()
 master.motors_disarmed_wait()
-print("[SUCCESS] Vehicle disarmed. Mission complete.")
+print("[SUCCESS] Disarmed. Mission complete.")
 
-# Close connection
 master.close()
-print("[INFO] Connection closed.")

@@ -45,40 +45,19 @@ def set_neutral():
     for i in range(8):
         rc_override[i] = 1500
 
-# -----------------------------
-# MISSION SEQUENCE START
-# -----------------------------
-# # 1. DIVING (DOWN) for 3s at 1700 PWM
-# print("[ACTION] 1. Diving DOWN for 4 seconds.")
-# set_neutral()
-# rc_override[0] = 1430
-# rc_override[1] = 1430
-# # rc_override[2] = 1350
-# # rc_override[3] = 1350
-# start_time = time.time()
-# while time.time() - start_time < 15:
-#     send_rc_override()
-#     time.sleep(0.1)
-
-# # 2. REMAIN IDLE for 2s
-# print("[ACTION] 2. Remaining idle for 2 seconds...")
-# set_neutral()
-# start_time = time.time()
-# while time.time() - start_time < 2:
-#     send_rc_override()
-#     time.sleep(0.1)
 
 # 3. FORWARD for 5s at 1600 PWM
-print("[ACTION] 3. Moving forward for 10 seconds at 1600 PWM...")
+print("[ACTION] 3. Moving forward for 20 seconds at 1600 PWM...")
 set_neutral()
 # rc_override[4] = 1600
 #rc_override[4] = 1600
 rc_override[4] = 1600
-rc_override[7] = 1600
+# rc_override[0] = 1480
+# rc_override[7] = 1600
 # rc_override[1] = 1500
 # rc_override[6] = 1550
 start_time = time.time()
-while time.time() - start_time < 25:
+while time.time() - start_time < 20:
     send_rc_override()
     time.sleep(0.1)
 

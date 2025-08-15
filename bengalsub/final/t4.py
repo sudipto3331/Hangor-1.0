@@ -33,7 +33,6 @@ print("[SUCCESS] Vehicle armed.")
 rc_override = [1500] * 8 + [65535] * 10
 
 def send_rc_override():
-    """Send the current RC override values"""
     master.mav.rc_channels_override_send(
         master.target_system,
         master.target_component,
@@ -41,20 +40,38 @@ def send_rc_override():
     )
 
 def set_neutral():
-    """Set all channels to neutral position"""
     for i in range(8):
         rc_override[i] = 1500
 
 # -----------------------------
-# Move forward and dive for 25 seconds
+# Depth hold parameters
 # -----------------------------
-print("[ACTION] Moving forward and diving for 25 seconds...")
+TARGET_PRESSURE = 1058.00  # hPa
+DEPTH_KP = 2.0             # proportional gain for throttle control
+
+# -----------------------------
+# Move forward and hold depth
+# -----------------------------
+print("[ACTION] Moving forward and holding depth at 1049 hPa for 25 seconds...")
 set_neutral()
 rc_override[4] = 1600  # forward (pitch)
-rc_override[2] = 1510  # dive (throttle, adjust if needed)
 
 start_time = time.time()
-while time.time() - start_time < 20:
+while time.time() - start_time < 25:
+    # Read the latest SCALED_PRESSURE2 MAVLink message
+    msg = master.recv_match(type='SCALED_PRESSURE2', blocking=False)
+    if msg is not None:
+        current_pressure = msg.press_abs / 100.0  # convert Pa to hPa
+        error = TARGET_PRESSURE - current_pressure
+
+        # proportional control for throttle
+        throttle_pwm = int(1500 + DEPTH_KP * error)
+        throttle_pwm = max(1400, min(1600, throttle_pwm))  # clamp
+
+        rc_override[2] = throttle_pwm  # set throttle
+
+        print(f"[DEBUG] Pressure: {current_pressure:.2f} hPa, Throttle: {throttle_pwm}")
+
     send_rc_override()
     time.sleep(0.1)
 

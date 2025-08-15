@@ -46,15 +46,23 @@ def set_neutral():
         rc_override[i] = 1500
 
 # -----------------------------
-# Move forward and dive for 25 seconds
+# Move forward and dive gradually
 # -----------------------------
-print("[ACTION] Moving forward and diving for 25 seconds...")
+print("[ACTION] Moving forward and diving gradually for 25 seconds...")
 set_neutral()
 rc_override[4] = 1600  # forward (pitch)
-rc_override[2] = 1510  # dive (throttle, adjust if needed)
 
 start_time = time.time()
-while time.time() - start_time < 20:
+dive_pwm = 1520  # initial dive PWM (less than 1500 to go down)
+
+while time.time() - start_time < 25:
+    # Pulse dive every 1 second
+    current_time = time.time() - start_time
+    if int(current_time) % 2 == 0:
+        rc_override[2] = dive_pwm  # dive
+    else:
+        rc_override[2] = 1520  # neutral throttle
+    
     send_rc_override()
     time.sleep(0.1)
 
