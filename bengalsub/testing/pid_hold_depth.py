@@ -1,11 +1,6 @@
-#!/usr/bin/env python3
-"""
-Simple ArduSub diving script with basic PID control
-Dives to 1ft depth, stabilizes for 10 seconds, then disarms
-"""
 
-import time
 from pymavlink import mavutil
+import time
 
 # Configuration
 TARGET_DEPTH = 0.3048  # 1 foot in meters

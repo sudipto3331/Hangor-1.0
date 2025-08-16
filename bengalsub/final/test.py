@@ -57,7 +57,7 @@ rc_override[4] = 1600
 # rc_override[1] = 1500
 # rc_override[6] = 1550
 start_time = time.time()
-while time.time() - start_time < 20:
+while time.time() - start_time < 15:
     send_rc_override()
     time.sleep(0.1)
 
