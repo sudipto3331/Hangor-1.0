@@ -28,12 +28,11 @@ master.motors_armed_wait()
 print("[SUCCESS] Vehicle armed.")
 
 # -----------------------------
-# RC override: 8 channels + 10 unused
+# RC override setup
 # -----------------------------
 rc_override = [1500] * 8 + [65535] * 10
 
 def send_rc_override():
-    """Send the current RC override values"""
     master.mav.rc_channels_override_send(
         master.target_system,
         master.target_component,
@@ -41,25 +40,65 @@ def send_rc_override():
     )
 
 def set_neutral():
-    """Set all channels to neutral position"""
     for i in range(8):
         rc_override[i] = 1500
 
 # -----------------------------
-# Move forward and dive for 25 seconds
+# Pressure Control Parameters
 # -----------------------------
-print("[ACTION] Moving forward and diving for 25 seconds...")
+TARGET_PRESSURE = 1020.0  # hPa
+print(f"[INFO] Target pressure set to {TARGET_PRESSURE} hPa")
+
+last_pressure = None
+
+# -----------------------------
+# Run Mission: Maintain depth + move forward
+# -----------------------------
+print("[ACTION] Moving forward while maintaining depth for 20s...")
 set_neutral()
-rc_override[4] = 1600  # forward (pitch)
-# rc_override[2] = 1510  # dive (throttle, adjust if needed)
+rc_override[4] = 1600  # Forward thrust
 
 start_time = time.time()
-while time.time() - start_time < 15:
-    send_rc_override()
+while time.time() - start_time < 20:
+    # Read next MAVLink message
+    msg = master.recv_match(type=['SCALED_PRESSURE','SCALED_PRESSURE2'], blocking=True, timeout=1)
+    
+    if msg:
+        pressure = msg.press_abs  # Absolute pressure (hPa)
+        
+        if pressure != last_pressure:
+            print(f"[SENSOR] Pressure: {pressure:.2f} hPa")
+            last_pressure = pressure
+        
+        # Depth control with 1s delay after correction
+        if pressure < TARGET_PRESSURE:
+            # Too shallow → dive
+            rc_override[0] = 1400
+            rc_override[1] = 1400
+            send_rc_override()
+            print("[ACTION] Diving... holding for 1s")
+            time.sleep(1)
+
+        elif pressure > TARGET_PRESSURE:
+            # Too deep → rise
+            rc_override[0] = 1600
+            rc_override[1] = 1600
+            send_rc_override()
+            print("[ACTION] Rising... holding for 1s")
+            time.sleep(1)
+
+        else:
+            # Stable
+            rc_override[0] = 1500
+            rc_override[1] = 1500
+            send_rc_override()
+    else:
+        print("[WARNING] No pressure message received!")
+
     time.sleep(0.1)
 
 # -----------------------------
-# MISSION COMPLETE - STOP ALL MOTION
+# Mission complete - stop all motion
 # -----------------------------
 print("[INFO] Mission sequence complete. Stopping all motion...")
 set_neutral()
@@ -71,7 +110,7 @@ send_rc_override()
 print("[INFO] RC override cleared.")
 
 # -----------------------------
-# Disarm the vehicle
+# Disarm vehicle
 # -----------------------------
 print("[INFO] Disarming the vehicle...")
 master.arducopter_disarm()

@@ -1,35 +1,23 @@
 from pymavlink import mavutil
 import time
 
-# -----------------------------
-# Connect to Pixhawk
-# -----------------------------
 print("[INFO] Connecting to Pixhawk...")
 master = mavutil.mavlink_connection('udpin:0.0.0.0:14550')
 master.wait_heartbeat()
 print(f"[INFO] Connected to system {master.target_system}, component {master.target_component}")
 
-# -----------------------------
-# Set mode to MANUAL
-# -----------------------------
 print("[INFO] Setting mode to STABILIZE...")
 mode_mapping = master.mode_mapping()
-mode_id = mode_mapping['STABILIZE']  # Change to STABILIZE for better control
+mode_id = mode_mapping['STABILIZE']
 master.set_mode(mode_id)
 print("[SUCCESS] Mode set to STABILIZE")
 time.sleep(2)
 
-# -----------------------------
-# Arm the vehicle
-# -----------------------------
 print("[INFO] Arming the vehicle...")
 master.arducopter_arm()
 master.motors_armed_wait()
 print("[SUCCESS] Vehicle armed.")
 
-# -----------------------------
-# RC override: 8 channels + 10 unused
-# -----------------------------
 rc_override = [1500] * 8 + [65535] * 10
 
 def send_rc_override():
@@ -45,26 +33,35 @@ def set_neutral():
     for i in range(8):
         rc_override[i] = 1500
 
-
-# 3. FORWARD for 5s at 1600 PWM
-print("[ACTION] 3. Moving forward for 20 seconds at 1600 PWM...")
+<<<<<<< HEAD:bengalsub/final/t1.py
+# -----------------------------
+# Move forward and dive for 25 seconds
+# -----------------------------
+print("[ACTION] Moving forward and diving for 25 seconds...")
 set_neutral()
-# rc_override[4] = 1600
-#rc_override[4] = 1600
-rc_override[4] = 1600
-# rc_override[0] = 1480
-# rc_override[7] = 1600
-# rc_override[1] = 1500
-# rc_override[6] = 1550
+rc_override[4] = 1600  # forward (pitch)
+# rc_override[2] = 1510  # dive (throttle, adjust if needed)
+=======
+>>>>>>> 2d6d0ca821edca912febe22fcb17d533f7e976f2:bengalsub/testing/check_rc_channels.py
+
+set_neutral()
+rc_override[0] = 1500  
+rc_override[1] = 1500  
+rc_override[2] = 1500  
+rc_override[3] = 1500  
+rc_override[4] = 1500  
+rc_override[5] = 1500 
+rc_override[6] = 1500  
+rc_override[7] = 1500  
 start_time = time.time()
+<<<<<<< HEAD:bengalsub/final/t1.py
 while time.time() - start_time < 15:
+=======
+while time.time() - start_time < 10:
+>>>>>>> 2d6d0ca821edca912febe22fcb17d533f7e976f2:bengalsub/testing/check_rc_channels.py
     send_rc_override()
     time.sleep(0.1)
 
-
-# -----------------------------
-# MISSION COMPLETE - STOP ALL MOTION
-# -----------------------------
 print("[INFO] Mission sequence complete. Stopping all motion...")
 set_neutral()
 send_rc_override()
@@ -74,9 +71,7 @@ rc_override = [65535] * 18
 send_rc_override()
 print("[INFO] RC override cleared.")
 
-# -----------------------------
-# Disarm the vehicle
-# -----------------------------
+
 print("[INFO] Disarming the vehicle...")
 master.arducopter_disarm()
 master.motors_disarmed_wait()
