@@ -51,10 +51,10 @@ def set_neutral():
 print("[ACTION] Moving forward and diving for 25 seconds...")
 set_neutral()
 rc_override[4] = 1600  # forward (pitch)
-rc_override[2] = 1510  # dive (throttle, adjust if needed)
+# rc_override[2] = 1510  # dive (throttle, adjust if needed)
 
 start_time = time.time()
-while time.time() - start_time < 20:
+while time.time() - start_time < 15:
     send_rc_override()
     time.sleep(0.1)
 
